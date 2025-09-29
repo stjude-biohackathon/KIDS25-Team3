@@ -13,10 +13,10 @@ from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 import os
 
-IMG_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\videos\imgs")
-VID_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\videos\vids_mp4")
-MOSQUITO_PATH = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\resources\mosquito.png")
-TEAMMATES_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\resources\teammates")
+IMG_DIR = Path(r".\videos\imgs")
+VID_DIR = Path(r".\videos\vids_mp4")
+MOSQUITO_PATH = Path(r".\resources\mosquito.png")
+TEAMMATES_DIR = Path(r".\resources\teammates")
 EXPORT_DIR = Path(r".\tmp")
 EXPORT_DIR.mkdir(exist_ok=True)
 
