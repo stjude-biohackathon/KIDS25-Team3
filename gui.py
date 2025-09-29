@@ -4,7 +4,8 @@ from pathlib import Path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QLabel, QTabWidget, QPushButton, QComboBox,
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem
+    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem,
+    QMessageBox
 )
 from PyQt5.QtGui import QPixmap, QImage, QPainter
 from PyQt5.QtCore import Qt, QPointF, QUrl
@@ -15,8 +16,10 @@ import os
 IMG_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\videos\imgs")
 VID_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\videos\vids_mp4")
 MOSQUITO_PATH = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\resources\mosquito.png")
+TEAMMATES_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\resources\teammates")
 EXPORT_DIR = Path(r".\tmp")
 EXPORT_DIR.mkdir(exist_ok=True)
+
 class DraggablePixmapItem(QGraphicsPixmapItem):
     def __init__(self, pixmap, boundary_item):
         super().__init__(pixmap)
@@ -41,6 +44,9 @@ class ImageTab(QWidget):
         if not self.images:
             raise FileNotFoundError(f"No images found in {IMG_DIR}")
 
+        self.teammates = list(TEAMMATES_DIR.glob("*.png"))
+        self.teammate_index = 0
+
         self.layout = QVBoxLayout()
         self.setLayout(self.layout)
 
@@ -61,6 +67,10 @@ class ImageTab(QWidget):
         self.add_mosquito_button.clicked.connect(self.add_mosquito)
         self.layout.addWidget(self.add_mosquito_button)
 
+        self.add_teammates_button = QPushButton("Add Teammates")
+        self.add_teammates_button.clicked.connect(self.add_teammates)
+        self.layout.addWidget(self.add_teammates_button)
+
         self.export_button = QPushButton("Export Image")
         self.export_button.clicked.connect(self.export_image)
         self.layout.addWidget(self.export_button)
@@ -69,6 +79,7 @@ class ImageTab(QWidget):
         img_path = random.choice(self.images)
         pixmap = QPixmap(str(img_path))
         self.scene.clear()
+        self.teammate_index = 0  # reset teammates when showing new image
 
         # Scale image to fit view while keeping aspect ratio
         view_size = self.view.viewport().size()
@@ -91,6 +102,29 @@ class ImageTab(QWidget):
         mosquito_item.setZValue(1)
         self.scene.addItem(mosquito_item)
 
+    def add_teammates(self):
+        if self.image_pixmap_item is None or not self.teammates:
+            return
+
+        if self.teammate_index >= len(self.teammates):
+            QMessageBox.information(self, "Limit Reached", "Max number of teammates image reached")
+            return
+
+        teammate_path = self.teammates[self.teammate_index]
+        teammate_pixmap = QPixmap(str(teammate_path))
+
+        rect = self.image_pixmap_item.boundingRect()
+        spacing = rect.width() / (len(self.teammates) + 1)
+        x = spacing * (self.teammate_index + 1) - (teammate_pixmap.width() / 2)
+        y = rect.height() / 4 - (teammate_pixmap.height() / 2)
+
+        teammate_item = DraggablePixmapItem(teammate_pixmap, self.image_pixmap_item)
+        teammate_item.setPos(QPointF(x, y))
+        teammate_item.setZValue(1)
+        self.scene.addItem(teammate_item)
+
+        self.teammate_index += 1
+
     def export_image(self):
         if self.image_pixmap_item is None:
             return
@@ -103,7 +137,6 @@ class ImageTab(QWidget):
         export_path = EXPORT_DIR / "exported_image.png"
         image.save(str(export_path))
         print(f"Image exported to {export_path}")
-
 
 class VideoTab(QWidget):
     def __init__(self):
@@ -126,7 +159,6 @@ class VideoTab(QWidget):
         self.player.setVideoOutput(self.video_widget)
         self.dropdown.currentIndexChanged.connect(self.play_selected_video)
 
-        # Play first video by default
         if self.videos:
             self.play_selected_video(0)
 
