@@ -3,8 +3,8 @@ import random
 from pathlib import Path
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
-    QLabel, QTabWidget, QPushButton, QComboBox,
-    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem,
+    QLabel, QTabWidget, QPushButton, QComboBox, QSlider,
+    QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem, QGraphicsColorizeEffect,
     QMessageBox
 )
 from PyQt5.QtGui import QPixmap, QImage, QPainter
@@ -20,22 +20,27 @@ TEAMMATES_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\resources
 EXPORT_DIR = Path(r".\tmp")
 EXPORT_DIR.mkdir(exist_ok=True)
 
+
 class DraggablePixmapItem(QGraphicsPixmapItem):
-    def __init__(self, pixmap, boundary_item):
+    def __init__(self, pixmap: QPixmap, boundary_item: QGraphicsPixmapItem):
         super().__init__(pixmap)
         self.boundary_item = boundary_item
         self.setFlags(QGraphicsPixmapItem.ItemIsMovable | QGraphicsPixmapItem.ItemIsSelectable)
+        # ensure itemChange receives position updates
+        self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
 
     def itemChange(self, change, value):
         if change == QGraphicsItem.ItemPositionChange and self.scene():
             new_pos = value
-            # Keep inside boundary
             rect = self.boundary_item.boundingRect()
-            w, h = self.boundingRect().width(), self.boundingRect().height()
-            x = min(max(new_pos.x(), 0), rect.width() - w)
-            y = min(max(new_pos.y(), 0), rect.height() - h)
+            w = self.boundingRect().width()
+            h = self.boundingRect().height()
+            # clamp position so item stays fully inside the boundary rect
+            x = min(max(new_pos.x(), 0), max(0, rect.width() - w))
+            y = min(max(new_pos.y(), 0), max(0, rect.height() - h))
             return QPointF(x, y)
         return super().itemChange(change, value)
+
 
 class ImageTab(QWidget):
     def __init__(self):
@@ -58,7 +63,9 @@ class ImageTab(QWidget):
         self.layout.addWidget(self.view, stretch=1)
 
         self.image_pixmap_item = None
+        self.brightness_effect = None
 
+        # Buttons
         self.show_button = QPushButton("Show Random Image")
         self.show_button.clicked.connect(self.show_random_image)
         self.layout.addWidget(self.show_button)
@@ -71,6 +78,14 @@ class ImageTab(QWidget):
         self.add_teammates_button.clicked.connect(self.add_teammates)
         self.layout.addWidget(self.add_teammates_button)
 
+        # Brightness slider (fast because it uses a graphics effect)
+        self.layout.addWidget(QLabel("Adjust Brightness"))
+        self.brightness_slider = QSlider(Qt.Horizontal)
+        self.brightness_slider.setRange(0, 100)
+        self.brightness_slider.setValue(50)  # neutral
+        self.brightness_slider.valueChanged.connect(self.update_brightness)
+        self.layout.addWidget(self.brightness_slider)
+
         self.export_button = QPushButton("Export Image")
         self.export_button.clicked.connect(self.export_image)
         self.layout.addWidget(self.export_button)
@@ -79,15 +94,42 @@ class ImageTab(QWidget):
         img_path = random.choice(self.images)
         pixmap = QPixmap(str(img_path))
         self.scene.clear()
-        self.teammate_index = 0  # reset teammates when showing new image
+        self.teammate_index = 0
+        self.brightness_slider.setValue(50)
 
-        # Scale image to fit view while keeping aspect ratio
+        # Scale image to fit view while keeping aspect ratio (fills view as best possible)
         view_size = self.view.viewport().size()
+        if view_size.width() <= 0 or view_size.height() <= 0:
+            # fallback if view hasn't been shown yet
+            view_size = self.view.size()
         pixmap = pixmap.scaled(view_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
         self.image_pixmap_item = QGraphicsPixmapItem(pixmap)
-        self.scene.addItem(self.image_pixmap_item)
         self.image_pixmap_item.setZValue(0)
+        self.scene.addItem(self.image_pixmap_item)
+
+        # ensure scene rect matches image so coordinates align and boundary checks work
+        rect = self.image_pixmap_item.boundingRect()
+        self.scene.setSceneRect(rect)
+        self.view.fitInView(rect, Qt.KeepAspectRatio)
+
+        # Reset and attach brightness effect
+        self.brightness_effect = QGraphicsColorizeEffect()
+        self.brightness_effect.setColor(Qt.white)
+        self.brightness_effect.setStrength(0.0)
+        self.image_pixmap_item.setGraphicsEffect(self.brightness_effect)
+
+    def update_brightness(self, value: int):
+        if not self.brightness_effect:
+            return
+        # slider value 50 -> neutral; (0..100) maps to -1..+1
+        strength = (value - 50) / 50.0
+        if strength >= 0:
+            self.brightness_effect.setColor(Qt.white)
+            self.brightness_effect.setStrength(min(max(strength, 0.0), 1.0))
+        else:
+            self.brightness_effect.setColor(Qt.black)
+            self.brightness_effect.setStrength(min(max(-strength, 0.0), 1.0))
 
     def add_mosquito(self):
         if self.image_pixmap_item is None:
@@ -96,8 +138,8 @@ class ImageTab(QWidget):
         mosquito_item = DraggablePixmapItem(mosquito_pixmap, self.image_pixmap_item)
 
         rect = self.image_pixmap_item.boundingRect()
-        x = random.uniform(0, rect.width() - mosquito_pixmap.width())
-        y = random.uniform(0, rect.height() - mosquito_pixmap.height())
+        x = random.uniform(0, max(0, rect.width() - mosquito_pixmap.width()))
+        y = random.uniform(0, max(0, rect.height() - mosquito_pixmap.height()))
         mosquito_item.setPos(QPointF(x, y))
         mosquito_item.setZValue(1)
         self.scene.addItem(mosquito_item)
@@ -116,10 +158,11 @@ class ImageTab(QWidget):
         rect = self.image_pixmap_item.boundingRect()
         spacing = rect.width() / (len(self.teammates) + 1)
         x = spacing * (self.teammate_index + 1) - (teammate_pixmap.width() / 2)
-        y = rect.height() / 4 - (teammate_pixmap.height() / 2)
+        # slightly lower placement (about 1/3 of the image)
+        y = rect.height() * 0.35 - (teammate_pixmap.height() / 2)
 
         teammate_item = DraggablePixmapItem(teammate_pixmap, self.image_pixmap_item)
-        teammate_item.setPos(QPointF(x, y))
+        teammate_item.setPos(QPointF(max(x, 0), max(y, 0)))
         teammate_item.setZValue(1)
         self.scene.addItem(teammate_item)
 
@@ -132,11 +175,13 @@ class ImageTab(QWidget):
         image = QImage(int(rect.width()), int(rect.height()), QImage.Format_ARGB32)
         image.fill(Qt.transparent)
         painter = QPainter(image)
+        # Render the scene (including graphics effects) into the QImage
         self.scene.render(painter, target=rect, source=rect)
         painter.end()
         export_path = EXPORT_DIR / "exported_image.png"
         image.save(str(export_path))
         print(f"Image exported to {export_path}")
+
 
 class VideoTab(QWidget):
     def __init__(self):
@@ -169,6 +214,7 @@ class VideoTab(QWidget):
         self.player.setMedia(QMediaContent(QUrl.fromLocalFile(video_path)))
         self.player.play()
 
+
 class DemoTab(QWidget):
     def __init__(self, text):
         super().__init__()
@@ -176,11 +222,12 @@ class DemoTab(QWidget):
         layout.addWidget(QLabel(text))
         self.setLayout(layout)
 
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Hackathon Demo GUI")
-        self.setGeometry(200, 200, 800, 600)
+        self.setGeometry(200, 200, 1000, 800)
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
         self.tabs.addTab(ImageTab(), "Method 1")
@@ -188,6 +235,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(DemoTab("Content for Method 3"), "Method 3")
         self.tabs.addTab(DemoTab("Content for Method 4"), "Method 4")
         self.showMaximized()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
