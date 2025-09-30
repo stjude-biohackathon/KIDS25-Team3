@@ -1,5 +1,7 @@
 videos/*
 **/config.py
 venv
+dataset/*
+model/*
 tmp/*
-movToMP4.py
+yolo_labels/*

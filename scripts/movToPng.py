@@ -3,10 +3,10 @@ import os
 from pathlib import Path
 
 # Input directory with .mov files
-input_dir = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\videos\vids")
+input_dir = Path(r"")
 
 # Output directory for frames
-output_dir = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\videos\imgs")
+output_dir = Path(r"")
 output_dir.mkdir(exist_ok=True)
 
 # Loop through all .mov files
@@ -28,7 +28,7 @@ for mov_file in input_dir.glob("*.mov"):
             break  # no more frames
 
         # Save each frame as PNG
-        frame_path = video_out_dir / f"{video_name}_frame{frame_idx:05d}.png"
+        frame_path = video_out_dir / f"{video_name}frame_{frame_idx:06d}.png"
         cv2.imwrite(str(frame_path), frame)
         frame_idx += 1
 
