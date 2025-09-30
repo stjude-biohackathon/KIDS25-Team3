@@ -14,7 +14,8 @@ from PyQt5.QtMultimediaWidgets import QVideoWidget
 import os
 
 IMG_DIR = Path(r".\videos\imgs")
-VID_DIR = Path(r".\videos\vids_mp4")
+# VID_DIR = Path(r".\videos\vids_mp4")
+VID_DIR = Path(r".\videos\vids_avi")
 MOSQUITO_PATH = Path(r".\resources\mosquito.png")
 TEAMMATES_DIR = Path(r".\resources\teammates")
 EXPORT_DIR = Path(r".\tmp")
@@ -190,9 +191,11 @@ class VideoTab(QWidget):
         self.setLayout(self.layout)
 
         self.dropdown = QComboBox()
-        self.videos = list(VID_DIR.glob("*.mp4"))
+        self.videos = list(VID_DIR.glob("*.avi"))
+        # self.videos = list(VID_DIR.glob("*.mp4"))
         if not self.videos:
-            raise FileNotFoundError(f"No .mp4 files found in {VID_DIR}")
+            raise FileNotFoundError(f"No .avi files found in {VID_DIR}")
+            # raise FileNotFoundError(f"No .mp4 files found in {VID_DIR}")
         for v in self.videos:
             self.dropdown.addItem(v.name, str(v))
         self.layout.addWidget(self.dropdown)
@@ -204,6 +207,9 @@ class VideoTab(QWidget):
         self.player.setVideoOutput(self.video_widget)
         self.dropdown.currentIndexChanged.connect(self.play_selected_video)
 
+        self.play_button = QPushButton("Play")
+        self.play_button.clicked.connect(self.play_pause)
+        self.layout.addWidget(self.play_button)
         if self.videos:
             self.play_selected_video(0)
 
@@ -211,8 +217,22 @@ class VideoTab(QWidget):
         if index < 0:
             return
         video_path = self.dropdown.itemData(index)
+
         self.player.setMedia(QMediaContent(QUrl.fromLocalFile(video_path)))
         self.player.play()
+        self.player.pause()
+        self.play_button.setText("Play")
+
+    def play_pause(self, index):
+        if index < 0:
+            return
+        if self.player.state() == QMediaPlayer.PlayingState:
+            self.player.pause()
+            self.play_button.setText("Play")
+        else:
+            self.player.play()
+            self.play_button.setText("Pause")
+
 
 
 class DemoTab(QWidget):
