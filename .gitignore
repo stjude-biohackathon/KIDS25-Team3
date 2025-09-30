@@ -3,3 +3,4 @@ videos/*
 venv
 dataset/*
 model/*
+tmp/*
