@@ -4,3 +4,4 @@ venv
 dataset/*
 model/*
 tmp/*
+yolo_labels/*

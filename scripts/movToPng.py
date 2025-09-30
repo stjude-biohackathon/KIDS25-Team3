@@ -28,7 +28,7 @@ for mov_file in input_dir.glob("*.mov"):
             break  # no more frames
 
         # Save each frame as PNG
-        frame_path = video_out_dir / f"frame_{frame_idx:06d}.png"
+        frame_path = video_out_dir / f"{video_name}frame_{frame_idx:06d}.png"
         cv2.imwrite(str(frame_path), frame)
         frame_idx += 1
 
