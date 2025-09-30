@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QLabel, QTabWidget, QPushButton, QComboBox, QSlider,
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem, QGraphicsColorizeEffect,
-    QMessageBox
+    QMessageBox, QHBoxLayout
 )
 from PyQt5.QtGui import QPixmap, QImage, QPainter
 from PyQt5.QtCore import Qt, QPointF, QUrl
@@ -20,6 +20,41 @@ TEAMMATES_DIR = Path(r".\resources\teammates")
 EXPORT_DIR = Path(r".\tmp")
 EXPORT_DIR.mkdir(exist_ok=True)
 
+class BraggsPeakTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QHBoxLayout()  # side-by-side layout
+        self.setLayout(layout)
+
+        # Left side: explanatory text
+        text_label = QLabel(
+            "<h2>Why Our Project Matters</h2>"
+            "<p>Radiation therapy is a powerful tool in modern medicine, "
+            "but conventional X-rays deposit energy along their entire path, "
+            "damaging both healthy tissue and tumors.</p>"
+            "<p>Protons behave differently — they release most of their energy "
+            "at a precise depth, known as the <b>Bragg Peak</b>. "
+            "This means we can target tumors more accurately while sparing "
+            "surrounding healthy tissue.</p>"
+            "<p>Our project leverages this principle to design better "
+            "treatment planning and visualization tools, "
+            "helping clinicians improve outcomes and reduce side effects.</p>"
+        )
+        text_label.setWordWrap(True)
+        text_label.setAlignment(Qt.AlignTop)
+        text_label.setMinimumWidth(300)
+        layout.addWidget(text_label, stretch=1)
+
+        # Right side: Bragg’s Peak image
+        img_path = Path(r".\resources\braggs_peak.png")
+        if not img_path.exists():
+            raise FileNotFoundError(f"Bragg's Peak image not found: {img_path}")
+        pixmap = QPixmap(str(img_path))
+
+        img_label = QLabel()
+        img_label.setPixmap(pixmap.scaledToWidth(400, Qt.SmoothTransformation))
+        img_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(img_label, stretch=1)
 
 class DraggablePixmapItem(QGraphicsPixmapItem):
     def __init__(self, pixmap: QPixmap, boundary_item: QGraphicsPixmapItem):
@@ -232,7 +267,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         self.tabs.addTab(ImageTab(), "Method 1")
         self.tabs.addTab(VideoTab(), "Method 2")
-        self.tabs.addTab(DemoTab("Content for Method 3"), "Method 3")
+        self.tabs.addTab(BraggsPeakTab(), "Method 3")
         self.tabs.addTab(DemoTab("Content for Method 4"), "Method 4")
         self.showMaximized()
 
