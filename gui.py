@@ -5,7 +5,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout,
     QLabel, QTabWidget, QPushButton, QComboBox, QSlider,
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem, QGraphicsColorizeEffect,
-    QMessageBox
+    QMessageBox, QHBoxLayout
 )
 from PyQt5.QtGui import QPixmap, QImage, QPainter
 from PyQt5.QtCore import Qt, QPointF, QUrl
@@ -13,13 +13,49 @@ from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 import os
 
-IMG_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\videos\imgs")
-VID_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\videos\vids_mp4")
-MOSQUITO_PATH = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\resources\mosquito.png")
-TEAMMATES_DIR = Path(r"C:\Users\jzhang29\Projects\Archive\KIDS25-Team3\resources\teammates")
+IMG_DIR = Path(r".\videos\imgs")
+# VID_DIR = Path(r".\videos\vids_mp4")
+VID_DIR = Path(r".\videos\vids_avi")
+MOSQUITO_PATH = Path(r".\resources\mosquito.png")
+TEAMMATES_DIR = Path(r".\resources\teammates")
 EXPORT_DIR = Path(r".\tmp")
 EXPORT_DIR.mkdir(exist_ok=True)
 
+class BraggsPeakTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        layout = QHBoxLayout()  # side-by-side layout
+        self.setLayout(layout)
+
+        # Left side: explanatory text
+        text_label = QLabel(
+            "<h2>Why Our Project Matters</h2>"
+            "<p>Radiation therapy is a powerful tool in modern medicine, "
+            "but conventional X-rays deposit energy along their entire path, "
+            "damaging both healthy tissue and tumors.</p>"
+            "<p>Protons behave differently — they release most of their energy "
+            "at a precise depth, known as the <b>Bragg Peak</b>. "
+            "This means we can target tumors more accurately while sparing "
+            "surrounding healthy tissue.</p>"
+            "<p>Our project leverages this principle to design better "
+            "treatment planning and visualization tools, "
+            "helping clinicians improve outcomes and reduce side effects.</p>"
+        )
+        text_label.setWordWrap(True)
+        text_label.setAlignment(Qt.AlignTop)
+        text_label.setMinimumWidth(300)
+        layout.addWidget(text_label, stretch=1)
+
+        # Right side: Bragg’s Peak image
+        img_path = Path(r".\resources\braggs_peak.png")
+        if not img_path.exists():
+            raise FileNotFoundError(f"Bragg's Peak image not found: {img_path}")
+        pixmap = QPixmap(str(img_path))
+
+        img_label = QLabel()
+        img_label.setPixmap(pixmap.scaledToWidth(400, Qt.SmoothTransformation))
+        img_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(img_label, stretch=1)
 
 class DraggablePixmapItem(QGraphicsPixmapItem):
     def __init__(self, pixmap: QPixmap, boundary_item: QGraphicsPixmapItem):
@@ -190,9 +226,11 @@ class VideoTab(QWidget):
         self.setLayout(self.layout)
 
         self.dropdown = QComboBox()
-        self.videos = list(VID_DIR.glob("*.mp4"))
+        self.videos = list(VID_DIR.glob("*.avi"))
+        # self.videos = list(VID_DIR.glob("*.mp4"))
         if not self.videos:
-            raise FileNotFoundError(f"No .mp4 files found in {VID_DIR}")
+            raise FileNotFoundError(f"No .avi files found in {VID_DIR}")
+            # raise FileNotFoundError(f"No .mp4 files found in {VID_DIR}")
         for v in self.videos:
             self.dropdown.addItem(v.name, str(v))
         self.layout.addWidget(self.dropdown)
@@ -204,6 +242,9 @@ class VideoTab(QWidget):
         self.player.setVideoOutput(self.video_widget)
         self.dropdown.currentIndexChanged.connect(self.play_selected_video)
 
+        self.play_button = QPushButton("Play")
+        self.play_button.clicked.connect(self.play_pause)
+        self.layout.addWidget(self.play_button)
         if self.videos:
             self.play_selected_video(0)
 
@@ -211,8 +252,22 @@ class VideoTab(QWidget):
         if index < 0:
             return
         video_path = self.dropdown.itemData(index)
+
         self.player.setMedia(QMediaContent(QUrl.fromLocalFile(video_path)))
         self.player.play()
+        self.player.pause()
+        self.play_button.setText("Play")
+
+    def play_pause(self, index):
+        if index < 0:
+            return
+        if self.player.state() == QMediaPlayer.PlayingState:
+            self.player.pause()
+            self.play_button.setText("Play")
+        else:
+            self.player.play()
+            self.play_button.setText("Pause")
+
 
 
 class DemoTab(QWidget):
@@ -232,7 +287,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tabs)
         self.tabs.addTab(ImageTab(), "Method 1")
         self.tabs.addTab(VideoTab(), "Method 2")
-        self.tabs.addTab(DemoTab("Content for Method 3"), "Method 3")
+        self.tabs.addTab(BraggsPeakTab(), "Method 3")
         self.tabs.addTab(DemoTab("Content for Method 4"), "Method 4")
         self.showMaximized()
 
