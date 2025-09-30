@@ -2,4 +2,4 @@ videos/*
 **/config.py
 venv
 tmp/*
-movTo*.py
+movToMP4.py
