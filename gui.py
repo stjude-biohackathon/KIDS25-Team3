@@ -12,6 +12,8 @@ from PyQt5.QtCore import Qt, QPointF, QUrl
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 import os
+from ultralytics import YOLO
+import tempfile
 
 IMG_DIR = Path(r".\videos\imgs")
 # VID_DIR = Path(r".\videos\vids_mp4")
@@ -81,6 +83,7 @@ class DraggablePixmapItem(QGraphicsPixmapItem):
 class ImageTab(QWidget):
     def __init__(self):
         super().__init__()
+        self.current_image_path = None
         self.images = list(IMG_DIR.glob("*/*.png"))
         if not self.images:
             raise FileNotFoundError(f"No images found in {IMG_DIR}")
@@ -88,55 +91,71 @@ class ImageTab(QWidget):
         self.teammates = list(TEAMMATES_DIR.glob("*.png"))
         self.teammate_index = 0
 
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
+        # --- MAIN LAYOUT ---
+        main_layout = QVBoxLayout()
+        self.setLayout(main_layout)
 
+        # Top: image display
         self.scene = QGraphicsScene()
         self.view = QGraphicsView(self.scene)
         self.view.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.view.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.view.setRenderHints(QPainter.Antialiasing | QPainter.SmoothPixmapTransform)
-        self.layout.addWidget(self.view, stretch=1)
+
+        # Right: buttons/sliders
+        controls_layout = QVBoxLayout()
+        self.show_button = QPushButton("Show Random Image")
+        self.show_button.clicked.connect(self.show_random_image)
+        controls_layout.addWidget(self.show_button)
+
+        self.add_mosquito_button = QPushButton("Add Mosquito")
+        self.add_mosquito_button.clicked.connect(self.add_mosquito)
+        controls_layout.addWidget(self.add_mosquito_button)
+
+        self.add_teammates_button = QPushButton("Add Teammates")
+        self.add_teammates_button.clicked.connect(self.add_teammates)
+        controls_layout.addWidget(self.add_teammates_button)
+
+        controls_layout.addWidget(QLabel("Adjust color tint strength"))
+        self.brightness_slider = QSlider(Qt.Horizontal)
+        self.brightness_slider.setRange(0, 100)
+        self.brightness_slider.setValue(50)
+        self.brightness_slider.valueChanged.connect(self.update_brightness)
+        controls_layout.addWidget(self.brightness_slider)
+
+        self.reset_button = QPushButton("Reset Image")
+        self.reset_button.clicked.connect(self.reset_image)
+        controls_layout.addWidget(self.reset_button)
+
+        self.run_button = QPushButton("Run Detection")
+        self.run_button.clicked.connect(self.run_detection)
+        controls_layout.addWidget(self.run_button)
+
+        top_layout = QHBoxLayout()
+        top_layout.addWidget(self.view, stretch=3)
+        top_layout.addLayout(controls_layout, stretch=1)
+        main_layout.addLayout(top_layout, stretch=5)
+
+        # Bottom: metadata area
+        self.metadata_label = QLabel("Metadata will appear here.")
+        self.metadata_label.setAlignment(Qt.AlignLeft)
+        main_layout.addWidget(self.metadata_label, stretch=1)
 
         self.image_pixmap_item = None
         self.brightness_effect = None
 
-        # Buttons
-        self.show_button = QPushButton("Show Random Image")
-        self.show_button.clicked.connect(self.show_random_image)
-        self.layout.addWidget(self.show_button)
-
-        self.add_mosquito_button = QPushButton("Add Mosquito")
-        self.add_mosquito_button.clicked.connect(self.add_mosquito)
-        self.layout.addWidget(self.add_mosquito_button)
-
-        self.add_teammates_button = QPushButton("Add Teammates")
-        self.add_teammates_button.clicked.connect(self.add_teammates)
-        self.layout.addWidget(self.add_teammates_button)
-
-        # Brightness slider (fast because it uses a graphics effect)
-        self.layout.addWidget(QLabel("Adjust Brightness"))
-        self.brightness_slider = QSlider(Qt.Horizontal)
-        self.brightness_slider.setRange(0, 100)
-        self.brightness_slider.setValue(50)  # neutral
-        self.brightness_slider.valueChanged.connect(self.update_brightness)
-        self.layout.addWidget(self.brightness_slider)
-
-        self.export_button = QPushButton("Export Image")
-        self.export_button.clicked.connect(self.export_image)
-        self.layout.addWidget(self.export_button)
-
-    def show_random_image(self):
-        img_path = random.choice(self.images)
-        pixmap = QPixmap(str(img_path))
+    # ----------------- Methods -----------------
+    def reset_image(self):
+        self.brightness_slider.setEnabled(True)
+        if not self.current_image_path:
+            return
         self.scene.clear()
         self.teammate_index = 0
         self.brightness_slider.setValue(50)
 
-        # Scale image to fit view while keeping aspect ratio (fills view as best possible)
+        pixmap = QPixmap(str(self.current_image_path))
         view_size = self.view.viewport().size()
         if view_size.width() <= 0 or view_size.height() <= 0:
-            # fallback if view hasn't been shown yet
             view_size = self.view.size()
         pixmap = pixmap.scaled(view_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
 
@@ -144,28 +163,68 @@ class ImageTab(QWidget):
         self.image_pixmap_item.setZValue(0)
         self.scene.addItem(self.image_pixmap_item)
 
-        # ensure scene rect matches image so coordinates align and boundary checks work
         rect = self.image_pixmap_item.boundingRect()
         self.scene.setSceneRect(rect)
         self.view.fitInView(rect, Qt.KeepAspectRatio)
 
-        # Reset and attach brightness effect
         self.brightness_effect = QGraphicsColorizeEffect()
         self.brightness_effect.setColor(Qt.white)
         self.brightness_effect.setStrength(0.0)
         self.image_pixmap_item.setGraphicsEffect(self.brightness_effect)
 
+        self.metadata_label.setText(f"Reset image: {self.current_image_path.name}")
+
+    def show_random_image(self):
+        self.brightness_slider.setEnabled(True)
+        img_path = random.choice(self.images)
+        self.current_image_path = img_path  # <-- store original path
+        pixmap = QPixmap(str(img_path))
+        self.scene.clear()
+        self.teammate_index = 0
+        self.brightness_slider.setValue(50)
+
+        view_size = self.view.viewport().size()
+        if view_size.width() <= 0 or view_size.height() <= 0:
+            view_size = self.view.size()
+        pixmap = pixmap.scaled(view_size, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+
+        self.image_pixmap_item = QGraphicsPixmapItem(pixmap)
+        self.image_pixmap_item.setZValue(0)
+        self.scene.addItem(self.image_pixmap_item)
+
+        rect = self.image_pixmap_item.boundingRect()
+        self.scene.setSceneRect(rect)
+        self.view.fitInView(rect, Qt.KeepAspectRatio)
+
+        self.brightness_effect = QGraphicsColorizeEffect()
+        self.brightness_effect.setColor(Qt.white)
+        self.brightness_effect.setStrength(0.0)
+        self.image_pixmap_item.setGraphicsEffect(self.brightness_effect)
+
+        self.metadata_label.setText(f"Loaded image: {img_path.name}")
+
     def update_brightness(self, value: int):
-        if not self.brightness_effect:
+        # Check if the pixmap item still exists
+        try:
+            if not self.image_pixmap_item or self.image_pixmap_item.scene() is None:
+                return
+        except RuntimeError:
+            # The object was deleted
             return
-        # slider value 50 -> neutral; (0..100) maps to -1..+1
+
+        effect = self.image_pixmap_item.graphicsEffect()
+        if not effect or not isinstance(effect, QGraphicsColorizeEffect):
+            return
+
         strength = (value - 50) / 50.0
         if strength >= 0:
-            self.brightness_effect.setColor(Qt.white)
-            self.brightness_effect.setStrength(min(max(strength, 0.0), 1.0))
+            effect.setColor(Qt.white)
+            effect.setStrength(min(max(strength, 0.0), 1.0))
         else:
-            self.brightness_effect.setColor(Qt.black)
-            self.brightness_effect.setStrength(min(max(-strength, 0.0), 1.0))
+            effect.setColor(Qt.black)
+            effect.setStrength(min(max(-strength, 0.0), 1.0))
+
+
 
     def add_mosquito(self):
         if self.image_pixmap_item is None:
@@ -183,7 +242,6 @@ class ImageTab(QWidget):
     def add_teammates(self):
         if self.image_pixmap_item is None or not self.teammates:
             return
-
         if self.teammate_index >= len(self.teammates):
             QMessageBox.information(self, "Limit Reached", "Max number of teammates image reached")
             return
@@ -194,7 +252,6 @@ class ImageTab(QWidget):
         rect = self.image_pixmap_item.boundingRect()
         spacing = rect.width() / (len(self.teammates) + 1)
         x = spacing * (self.teammate_index + 1) - (teammate_pixmap.width() / 2)
-        # slightly lower placement (about 1/3 of the image)
         y = rect.height() * 0.35 - (teammate_pixmap.height() / 2)
 
         teammate_item = DraggablePixmapItem(teammate_pixmap, self.image_pixmap_item)
@@ -204,19 +261,49 @@ class ImageTab(QWidget):
 
         self.teammate_index += 1
 
-    def export_image(self):
+    def run_detection(self):
+        
         if self.image_pixmap_item is None:
             return
+
         rect = self.image_pixmap_item.boundingRect()
         image = QImage(int(rect.width()), int(rect.height()), QImage.Format_ARGB32)
         image.fill(Qt.transparent)
         painter = QPainter(image)
-        # Render the scene (including graphics effects) into the QImage
         self.scene.render(painter, target=rect, source=rect)
         painter.end()
         export_path = EXPORT_DIR / "exported_image.png"
         image.save(str(export_path))
-        print(f"Image exported to {export_path}")
+
+        model_path = Path(r".\model\best.pt")
+        model = YOLO(str(model_path))
+        results = model.predict(
+            source=str(export_path),
+            save=True,
+            project=str(EXPORT_DIR),
+            name="yolo_results",
+            exist_ok=True
+        )
+
+        save_dir = Path(results[0].save_dir)
+        pred_file = save_dir / export_path.name
+        if not pred_file.exists():
+            candidates = list(save_dir.glob("*.*"))
+            if not candidates:
+                QMessageBox.warning(self, "YOLO Error", "No prediction image was generated.")
+                return
+            pred_file = candidates[-1]
+
+        pred_pixmap = QPixmap(str(pred_file))
+        self.scene.clear()
+        self.image_pixmap_item = QGraphicsPixmapItem(pred_pixmap)
+        self.scene.addItem(self.image_pixmap_item)
+        self.scene.setSceneRect(self.image_pixmap_item.boundingRect())
+        self.view.fitInView(self.image_pixmap_item.boundingRect(), Qt.KeepAspectRatio)
+
+        self.metadata_label.setText(f"Prediction displayed from {pred_file.name}")
+
+        self.brightness_slider.setEnabled(False)
 
 
 class VideoTab(QWidget):
