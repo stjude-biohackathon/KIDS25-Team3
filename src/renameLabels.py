@@ -15,5 +15,7 @@ if __name__ == "__main__":
                 continue
             
             src_path = os.path.join(p, file)
+            if "IMG" in file:
+                d = ''
             dst_path = os.path.join(make_dir, d.replace("_yolo_labels", "") + file)
             shutil.copy2(src_path, dst_path)
