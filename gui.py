@@ -116,7 +116,7 @@ class ImageTab(QWidget):
         self.add_teammates_button.clicked.connect(self.add_teammates)
         controls_layout.addWidget(self.add_teammates_button)
 
-        controls_layout.addWidget(QLabel("Adjust Brightness"))
+        controls_layout.addWidget(QLabel("Adjust color tint strength"))
         self.brightness_slider = QSlider(Qt.Horizontal)
         self.brightness_slider.setRange(0, 100)
         self.brightness_slider.setValue(50)
@@ -146,7 +146,7 @@ class ImageTab(QWidget):
 
     # ----------------- Methods -----------------
     def reset_image(self):
-        self.brightness_slider.setEnabled(False)
+        self.brightness_slider.setEnabled(True)
         if not self.current_image_path:
             return
         self.scene.clear()
