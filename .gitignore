@@ -1,3 +1,5 @@
 videos/*
 **/config.py
 venv
+dataset/*
+model/*
