@@ -24,38 +24,62 @@ EXPORT_DIR.mkdir(exist_ok=True)
 class BraggsPeakTab(QWidget):
     def __init__(self):
         super().__init__()
-        layout = QHBoxLayout()  # side-by-side layout
+        layout = QHBoxLayout()  # text on left, images on right
         self.setLayout(layout)
 
-        # Left side: explanatory text
+        # ---------------- Left side: explanatory text ----------------
         text_label = QLabel(
             "<h2>Why Our Project Matters</h2>"
-            "<p>Radiation therapy is a powerful tool in modern medicine, "
-            "but conventional X-rays deposit energy along their entire path, "
-            "damaging both healthy tissue and tumors.</p>"
-            "<p>Protons behave differently — they release most of their energy "
-            "at a precise depth, known as the <b>Bragg Peak</b>. "
-            "This means we can target tumors more accurately while sparing "
-            "surrounding healthy tissue.</p>"
-            "<p>Our project leverages this principle to design better "
-            "treatment planning and visualization tools, "
-            "helping clinicians improve outcomes and reduce side effects.</p>"
+            "<p>Radiation therapy is one of the most effective treatments for cancer. "
+            "However, conventional X-rays release energy along their full path, "
+            "damaging both healthy and cancerous tissue.</p>"
+            "<p>Proton therapy offers a solution: protons release most of their energy "
+            "at a precise depth, called the <b>Bragg Peak</b>. "
+            "This allows us to target tumors more accurately while minimizing side effects.</p>"
+            "<p>In practice, treatment often requires the use of a <b>range shifter</b> — "
+            "a device that adjusts the depth of the Bragg Peak for shallow tumors. "
+            "But if a range shifter board is mistakenly left on the treatment couch, "
+            "it can alter the proton range and reduce treatment quality.</p>"
+            "<p>Our project develops image recognition tools to automatically detect "
+            "the presence of a range shifter board on the couch, preventing these errors "
+            "and improving patient safety.</p>"
         )
         text_label.setWordWrap(True)
         text_label.setAlignment(Qt.AlignTop)
-        text_label.setMinimumWidth(300)
+        text_label.setMinimumWidth(350)
         layout.addWidget(text_label, stretch=1)
 
-        # Right side: Bragg’s Peak image
-        img_path = Path(r".\resources\braggs_peak.png")
-        if not img_path.exists():
-            raise FileNotFoundError(f"Bragg's Peak image not found: {img_path}")
-        pixmap = QPixmap(str(img_path))
+        # ---------------- Right side: images ----------------
+        images_layout = QVBoxLayout()
 
-        img_label = QLabel()
-        img_label.setPixmap(pixmap.scaledToWidth(400, Qt.SmoothTransformation))
-        img_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(img_label, stretch=1)
+        # Load Bragg's Peak image
+        braggs_img_path = Path(r".\resources\braggs_peak.png")
+        if not braggs_img_path.exists():
+            raise FileNotFoundError(f"Bragg's Peak image not found: {braggs_img_path}")
+        braggs_pixmap = QPixmap(str(braggs_img_path))
+
+        # Load Range Shifter image
+        rs_img_path = Path(r".\resources\range_shifter_use.png")
+        if not rs_img_path.exists():
+            raise FileNotFoundError(f"Range Shifter image not found: {rs_img_path}")
+        rs_pixmap = QPixmap(str(rs_img_path))
+
+        # Resize both images to the same width for consistency
+        target_width = 400
+        braggs_pixmap = braggs_pixmap.scaledToWidth(target_width, Qt.SmoothTransformation)
+        rs_pixmap = rs_pixmap.scaledToWidth(target_width, Qt.SmoothTransformation)
+
+        braggs_label = QLabel()
+        braggs_label.setPixmap(braggs_pixmap)
+        braggs_label.setAlignment(Qt.AlignCenter)
+
+        rs_label = QLabel()
+        rs_label.setPixmap(rs_pixmap)
+        rs_label.setAlignment(Qt.AlignCenter)
+
+        images_layout.addWidget(braggs_label)
+        images_layout.addWidget(rs_label)
+        layout.addLayout(images_layout, stretch=1)
 
 class DraggablePixmapItem(QGraphicsPixmapItem):
     def __init__(self, pixmap: QPixmap, boundary_item: QGraphicsPixmapItem):
