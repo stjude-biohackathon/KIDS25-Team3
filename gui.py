@@ -7,8 +7,8 @@ from PyQt5.QtWidgets import (
     QGraphicsView, QGraphicsScene, QGraphicsPixmapItem, QGraphicsItem, QGraphicsColorizeEffect,
     QMessageBox, QHBoxLayout
 )
-from PyQt5.QtGui import QPixmap, QImage, QPainter
-from PyQt5.QtCore import Qt, QPointF, QUrl
+from PyQt5.QtGui import QPixmap, QImage, QPainter, QMovie
+from PyQt5.QtCore import Qt, QPointF, QUrl, QSize
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 import os
@@ -334,7 +334,25 @@ class VideoTab(QWidget):
 
         self.play_button = QPushButton("Play")
         self.play_button.clicked.connect(self.play_pause)
-        self.layout.addWidget(self.play_button)
+        
+        self.slider = QSlider(Qt.Horizontal)
+        self.slider.setRange(0,0)
+        self.slider.sliderMoved.connect(self.set_position)
+
+        self.timestamp = QLabel("00:00/00:00")
+
+        self.player.positionChanged.connect(self.update_position)
+        self.player.durationChanged.connect(self.update_duration)
+
+        self.progress_layout = QHBoxLayout()
+        self.progress_layout.addWidget(self.slider)
+        self.progress_layout.addWidget(self.timestamp)
+
+        self.tools_layout = QHBoxLayout()
+        self.tools_layout.addWidget(self.play_button)
+        self.tools_layout.addLayout(self.progress_layout)
+
+        self.layout.addLayout(self.tools_layout)
         if self.videos:
             self.play_selected_video(0)
 
@@ -358,12 +376,35 @@ class VideoTab(QWidget):
             self.player.play()
             self.play_button.setText("Pause")
 
+    def update_position(self, position):
+        self.slider.setValue(position)
+        self.update_timestamp(position)
+
+    def update_duration(self, duration):
+        self.slider.setRange(0, duration)
+        self.total_duration = duration
+        self.update_timestamp(self.player.position())
+
+    def set_position(self, position):
+        self.player.setPosition(position)
+
+    def update_timestamp(self, current_ms):
+        def ms_to_time(ms):
+            seconds = ms // 1000
+            minutes = seconds // 60
+            seconds = seconds % 60
+            return f"{minutes:02}:{seconds:02}"
+
+        current_time = ms_to_time(current_ms)
+        total_time = ms_to_time(self.player.duration())
+        self.timestamp.setText(f"{current_time} / {total_time}")
 
 class VideoWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.model = YOLO("model/best.pt")
 
+        self.setWindowTitle("OpenCV Video in PyQt5")
         self.label = QLabel()
         self.label.setAlignment(Qt.AlignCenter)
 
@@ -384,7 +425,7 @@ class VideoWidget(QWidget):
         self.update_result()
 
         # OpenCV VideoCapture
-        self.cap = cv2.VideoCapture(0)
+        self.cap = cv2.VideoCapture(0)  # 0 = default camera
 
         # Timer to grab frames
         self.timer = QTimer()
@@ -423,9 +464,7 @@ class VideoWidget(QWidget):
             h, w, ch = frame.shape
             bytes_per_line = ch * w
             qt_img = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            img = QPixmap.fromImage(qt_img)
-            img = img.scaled(800, 800)
-            self.label.setPixmap(img)
+            self.label.setPixmap(QPixmap.fromImage(qt_img))
 
     def closeEvent(self, event):
         self.cap.release()
@@ -435,9 +474,75 @@ class VideoWidget(QWidget):
 class DemoTab(QWidget):
     def __init__(self, text):
         super().__init__()
-        layout = QVBoxLayout()
-        layout.addWidget(QLabel(text))
-        self.setLayout(layout)
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(QLabel(text))
+        self.setLayout(self.layout)
+
+class ModelTab(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.layout = QVBoxLayout()
+        self.p1 = QLabel(
+            "<p>Our computer vision specialists created a custom GUI for labelling foreground "
+            "and background points before submission to SAM2 to create a 3D-annotated model, "
+            "shown below </p>"
+        )
+        self.p1.setAlignment(Qt.AlignHCenter)
+
+        self.im1 = QHBoxLayout()
+        gui_path = Path(r".\resources\manual_gui.png")
+        if not gui_path.exists():
+            raise FileNotFoundError(f"Manual GUI image not found: {gui_path}")
+        gui_pixmap = QPixmap(str(gui_path))
+
+        gui_label = QLabel()
+        gui_label.setPixmap(gui_pixmap.scaledToWidth(400, Qt.SmoothTransformation))
+
+        sam2_label = QLabel()
+        sam2_path = Path(r".\resources\sam2.gif")
+        if not sam2_path.exists():
+            raise FileNotFoundError(f"SAM2 image not found: {sam2_path}")
+        sam2_label.setPixmap(QPixmap(str(sam2_path)).scaledToWidth(400, Qt.SmoothTransformation))
+
+        scaling = gui_label.geometry()
+        movie_size = QSize(scaling.width()//2,scaling.height()//2)
+        self.sam2_movie = QMovie(str(sam2_path))
+        sam2_label.setMovie(self.sam2_movie)
+        self.sam2_movie.setScaledSize(movie_size)
+        self.sam2_movie.setSpeed(200)
+        self.sam2_movie.start()
+
+        self.im1.addWidget(gui_label)
+        self.im1.addWidget(sam2_label)
+        self.im1.setAlignment(Qt.AlignCenter)
+
+        self.p2 = QLabel(
+            "<p> Next, we trained a YOLO model on our collected data using the "
+            "Ultralytics YOLOv11 framework, "
+            "with the results of our training plotted below.</p>"
+        )
+        self.p2.setAlignment(Qt.AlignCenter)
+
+        self.im2 = QHBoxLayout()
+        results_label = QLabel()
+        results_path = Path(r".\resources\results.png")
+        if not results_path.exists():
+            raise FileNotFoundError(f"SAM2 image not found: {results_path}")
+        results_label.setPixmap(QPixmap(str(results_path)).scaledToWidth(600, Qt.SmoothTransformation))
+        self.im2.addWidget(results_label)
+        self.im2.setAlignment(Qt.AlignCenter)
+
+        self.layout.addWidget(self.p1)
+        self.layout.addLayout(self.im1)
+        self.layout.addWidget(self.p2)
+        self.layout.addLayout(self.im2)
+
+
+        self.setLayout(self.layout)
+        # SAM2 for annotation, using a custom gui to determin foreground/background points
+        # trained on YOLO model
+
+
 
 
 class MainWindow(QMainWindow):
@@ -447,10 +552,10 @@ class MainWindow(QMainWindow):
         self.setGeometry(200, 200, 1000, 800)
         self.tabs = QTabWidget()
         self.setCentralWidget(self.tabs)
-        self.tabs.addTab(ImageTab(), "Method 1")
-        self.tabs.addTab(VideoTab(), "Method 2")
-        self.tabs.addTab(BraggsPeakTab(), "Method 3")
-        self.tabs.addTab(DemoTab("Content for Method 4"), "Method 4")
+        self.tabs.addTab(ImageTab(), "Picture")
+        self.tabs.addTab(VideoTab(), "Video")
+        self.tabs.addTab(BraggsPeakTab(), "Physics")
+        self.tabs.addTab(ModelTab(), "Model")
         self.tabs.addTab(VideoWidget(), "Real-time")
         self.showMaximized()
 

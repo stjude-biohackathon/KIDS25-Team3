@@ -5,3 +5,4 @@ dataset/*
 model/*
 tmp/*
 yolo_labels/*
+resources/*.gif
