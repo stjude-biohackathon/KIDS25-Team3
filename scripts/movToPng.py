@@ -3,13 +3,13 @@ import os, shutil
 from pathlib import Path
 
 # Input directory with .mov files
-input_dir = Path(r"../videos/videos")
+input_dir = Path(r"./videos/vids")
 
 # Output directory for frames
-output_dir = Path(r"../videos/imgs")
+output_dir = Path(r"./videos/imgs")
 output_dir.mkdir(exist_ok=True)
 
-finished_vids_dir = Path(r"../videos/finished_videos")
+finished_vids_dir = Path(r"./videos/vids")
 
 # Loop through all .mov files
 for mov_file in input_dir.glob("*.mov"):
