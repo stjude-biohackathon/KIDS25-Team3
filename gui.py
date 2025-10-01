@@ -16,6 +16,7 @@ from ultralytics import YOLO
 import tempfile
 import cv2
 from PyQt5.QtCore import QTimer, Qt
+import time
 
 IMG_DIR = Path(r".\videos\imgs")
 # VID_DIR = Path(r".\videos\vids_mp4")
@@ -361,32 +362,70 @@ class VideoTab(QWidget):
 class VideoWidget(QWidget):
     def __init__(self):
         super().__init__()
+        self.model = YOLO("model/best.pt")
 
-        self.setWindowTitle("OpenCV Video in PyQt5")
         self.label = QLabel()
         self.label.setAlignment(Qt.AlignCenter)
 
+        self.rs_board_detected = False
+        self.results = QLabel(str(self.rs_board_detected))
+        self.results.setAlignment(Qt.AlignCenter)
+
+        self.pass_icon = QPixmap("resources/Green_check.svg")
+        self.pass_icon = self.pass_icon.scaled(100, 100)
+        self.fail_icon = QPixmap("resources/Red_x.png")
+        self.fail_icon = self.fail_icon.scaled(100, 100)
+
         layout = QVBoxLayout()
         layout.addWidget(self.label)
+        layout.addWidget(self.results)
         self.setLayout(layout)
 
+        self.update_result()
+
         # OpenCV VideoCapture
-        self.cap = cv2.VideoCapture(0)  # 0 = default camera
+        self.cap = cv2.VideoCapture(0)
 
         # Timer to grab frames
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_frame)
         self.timer.start(30)  # ~30 fps
 
+    def update_result(self):
+        if self.rs_board_detected:
+            self.results.setPixmap(self.pass_icon)
+        else:
+            self.results.setPixmap(self.fail_icon)
+
     def update_frame(self):
         ret, frame = self.cap.read()
         if ret:
             # Convert BGR (OpenCV) to RGB (Qt expects RGB)
+            results = self.model(frame, conf=0.25, verbose=False, device='cpu')
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+            if len(results) > 0 and results[0].boxes is not None:
+                
+                boxes = results[0].boxes
+
+                if not boxes:
+                    self.rs_board_detected = False
+                    
+                for box in boxes:
+                    self.rs_board_detected = True
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    conf = box.conf[0].cpu().numpy()
+                    cv2.rectangle(frame, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+                    label = f"RS Board: {conf:.2f}"
+                    cv2.putText(frame, label, (int(x1), int(y1) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+
+            self.update_result()
             h, w, ch = frame.shape
             bytes_per_line = ch * w
             qt_img = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
-            self.label.setPixmap(QPixmap.fromImage(qt_img))
+            img = QPixmap.fromImage(qt_img)
+            img = img.scaled(800, 800)
+            self.label.setPixmap(img)
 
     def closeEvent(self, event):
         self.cap.release()
