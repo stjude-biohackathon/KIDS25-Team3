@@ -1,13 +1,15 @@
 import cv2
-import os
+import os, shutil
 from pathlib import Path
 
 # Input directory with .mov files
-input_dir = Path(r"")
+input_dir = Path(r"../videos/videos")
 
 # Output directory for frames
-output_dir = Path(r"")
+output_dir = Path(r"../videos/imgs")
 output_dir.mkdir(exist_ok=True)
+
+finished_vids_dir = Path(r"../videos/finished_videos")
 
 # Loop through all .mov files
 for mov_file in input_dir.glob("*.mov"):
@@ -34,5 +36,6 @@ for mov_file in input_dir.glob("*.mov"):
 
     cap.release()
     print(f"Saved {frame_idx} frames to {video_out_dir}")
+    shutil.move(os.path.join(input_dir, mov_file.name), os.path.join(finished_vids_dir, mov_file.name))
 
 print("✅ Done extracting frames!")
