@@ -14,6 +14,8 @@ from PyQt5.QtMultimediaWidgets import QVideoWidget
 import os
 from ultralytics import YOLO
 import tempfile
+import cv2
+from PyQt5.QtCore import QTimer, Qt
 
 IMG_DIR = Path(r".\videos\imgs")
 # VID_DIR = Path(r".\videos\vids_mp4")
@@ -356,6 +358,40 @@ class VideoTab(QWidget):
             self.play_button.setText("Pause")
 
 
+class VideoWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+
+        self.setWindowTitle("OpenCV Video in PyQt5")
+        self.label = QLabel()
+        self.label.setAlignment(Qt.AlignCenter)
+
+        layout = QVBoxLayout()
+        layout.addWidget(self.label)
+        self.setLayout(layout)
+
+        # OpenCV VideoCapture
+        self.cap = cv2.VideoCapture(0)  # 0 = default camera
+
+        # Timer to grab frames
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_frame)
+        self.timer.start(30)  # ~30 fps
+
+    def update_frame(self):
+        ret, frame = self.cap.read()
+        if ret:
+            # Convert BGR (OpenCV) to RGB (Qt expects RGB)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            h, w, ch = frame.shape
+            bytes_per_line = ch * w
+            qt_img = QImage(frame.data, w, h, bytes_per_line, QImage.Format_RGB888)
+            self.label.setPixmap(QPixmap.fromImage(qt_img))
+
+    def closeEvent(self, event):
+        self.cap.release()
+        super().closeEvent(event)
+
 
 class DemoTab(QWidget):
     def __init__(self, text):
@@ -376,6 +412,7 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(VideoTab(), "Method 2")
         self.tabs.addTab(BraggsPeakTab(), "Method 3")
         self.tabs.addTab(DemoTab("Content for Method 4"), "Method 4")
+        self.tabs.addTab(VideoWidget(), "Real-time")
         self.showMaximized()
 
 
